@@ -140,37 +140,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Year parameter is required" });
       }
 
-      const allRoutes = await storage.getAllRoutes();
-      const routesForYear = allRoutes.filter(r => r.year === year);
+      const allCompliance = await storage.getAllShipComplianceByYear(year);
 
       const complianceData = await Promise.all(
-        routesForYear.map(async route => {
-          const cb = calculateComplianceBalance(
-            TARGET_INTENSITY_2025,
-            route.ghgIntensity,
-            route.fuelConsumption
-          );
-
-          let existing = await storage.getShipCompliance(route.routeId, year);
-          
-          if (existing) {
-            existing = await storage.updateShipCompliance(existing.id, cb);
-          } else {
-            existing = await storage.createShipCompliance({
-              shipId: route.routeId,
-              routeId: route.routeId,
-              year,
-              cbGco2eq: cb
-            });
-          }
-
-          const bankedAmount = await storage.getTotalBankedAmount(route.routeId, year);
-          const adjustedCb = cb - bankedAmount;
+        allCompliance.map(async compliance => {
+          const bankedAmount = await storage.getTotalBankedAmount(compliance.shipId, year);
+          const adjustedCb = compliance.cbGco2eq - bankedAmount;
 
           return {
-            shipId: route.routeId,
+            shipId: compliance.shipId,
             year,
-            cbGco2eq: cb,
+            cbGco2eq: compliance.cbGco2eq,
             adjustedCb,
             bankedAmount
           };
@@ -179,8 +159,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(complianceData);
     } catch (error) {
-      console.error("Error calculating compliance balance:", error);
-      res.status(500).json({ error: "Failed to calculate compliance balance" });
+      console.error("Error fetching compliance balance:", error);
+      res.status(500).json({ error: "Failed to fetch compliance balance" });
     }
   });
 
