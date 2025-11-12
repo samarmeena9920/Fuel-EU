@@ -4,6 +4,8 @@
 
 This is a full-stack compliance tracking platform for FuelEU Maritime regulations. The application helps manage route data, calculate compliance balances (CB), handle banking of surplus emissions credits, and facilitate pooling arrangements between vessels. The platform enables maritime operators to track GHG intensity against regulatory targets (89.34 gCO₂e/MJ for 2025) and manage compliance strategies through banking and pooling mechanisms.
 
+You can view the site by Clicking : [Deployed Link](https://fuel-eu.onrender.com)
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
