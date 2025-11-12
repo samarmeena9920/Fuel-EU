@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -30,6 +30,10 @@ interface PoolMember {
 export function PoolingTab() {
   const [selectedYear, setSelectedYear] = useState<string>("2024");
   const [selectedShips, setSelectedShips] = useState<Set<string>>(new Set());
+  const [showPoolsPanel, setShowPoolsPanel] = useState<boolean>(false);
+  const [pools, setPools] = useState<Array<{ id: number; year: number; members: PoolMember[] }> | null>(null);
+  const [poolsLoading, setPoolsLoading] = useState<boolean>(false);
+  const [poolsError, setPoolsError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const { data: adjustedCbData, isLoading } = useQuery<AdjustedCB[]>({
@@ -92,6 +96,13 @@ export function PoolingTab() {
 
   const years = ["2024", "2025"];
 
+  // Clear cached pools when the selected year changes so the UI will fetch
+  // fresh data for the newly selected year.
+  useEffect(() => {
+    setPools(null);
+    setPoolsError(null);
+  }, [selectedYear]);
+
   return (
     <div className="space-y-8">
       <div>
@@ -115,6 +126,40 @@ export function PoolingTab() {
             ))}
           </SelectContent>
         </Select>
+          <div className="mt-3">
+            <Button
+              size="sm"
+              onClick={() => {
+                // Toggle the panel and fetch fresh data when opening
+                const fetchPools = async () => {
+                  setPoolsLoading(true);
+                  setPoolsError(null);
+                  try {
+                    const data = await apiRequest("GET", `/api/pools?year=${encodeURIComponent(selectedYear)}`);
+                    setPools(Array.isArray(data) ? data : []);
+                  } catch (err: any) {
+                    console.error("Failed to fetch pools:", err);
+                    setPoolsError(err?.message || String(err));
+                    toast({ title: "Failed to load pools", description: err?.message || String(err), variant: "destructive" });
+                  } finally {
+                    setPoolsLoading(false);
+                  }
+                };
+
+                setShowPoolsPanel((prev) => {
+                  const willOpen = !prev;
+                  if (willOpen) {
+                    // always fetch fresh when opening the panel
+                    void fetchPools();
+                  }
+                  return willOpen;
+                });
+              }}
+              data-testid="button-show-pools"
+            >
+              {showPoolsPanel ? 'Hide Pools' : 'Show Pools'}
+            </Button>
+          </div>
       </div>
 
       {isLoading && (
@@ -126,6 +171,44 @@ export function PoolingTab() {
 
       {!isLoading && adjustedCbData && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Pools panel (shows created pools for the selected year) */}
+          {showPoolsPanel && (
+            <div className="lg:col-span-3">
+              <Card className="p-6 mb-6">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground mb-4">Pools for {selectedYear}</h3>
+                {poolsLoading && <p className="text-sm text-muted-foreground">Loading pools...</p>}
+                {poolsError && <p className="text-sm text-destructive">{poolsError}</p>}
+                {!poolsLoading && !poolsError && pools && pools.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No pools have been created for this year.</p>
+                )}
+                {!poolsLoading && !poolsError && pools && pools.length > 0 && (
+                  <div className="space-y-4">
+                    {pools.map(pool => (
+                      <Card key={pool.id} className="p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <p className="font-medium">Pool #{pool.id}</p>
+                            <p className="text-xs text-muted-foreground">Year {pool.year}</p>
+                          </div>
+                          <p className="text-sm text-muted-foreground">Members: {pool.members.length}</p>
+                        </div>
+                        <div className="space-y-2">
+                          {pool.members.map(m => (
+                            <div key={m.shipId} className="flex items-center justify-between p-2 border rounded text-sm">
+                              <span className="font-medium">{m.shipId}</span>
+                              <span className={`font-mono ${m.cbAfter >= 0 ? 'text-green-600' : 'text-destructive'}`}>
+                                {m.cbAfter >= 0 ? '+' : ''}{m.cbAfter.toFixed(2)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </div>
+          )}
           <div className="lg:col-span-2">
             <Card className="p-6">
               <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground mb-4">Select Pool Members</h3>

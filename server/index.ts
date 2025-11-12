@@ -1,4 +1,35 @@
+import fs from "fs";
+import path from "path";
 import express, { type Request, Response, NextFunction } from "express";
+
+// Lightweight .env loader: if environment variables are not set and a .env
+// file exists in the project root, load it. This avoids depending on an
+// external package and makes local dev easier.
+try {
+  const envPath = path.resolve(process.cwd(), ".env");
+  if (fs.existsSync(envPath)) {
+    const content = fs.readFileSync(envPath, "utf8");
+    for (const line of content.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eq = trimmed.indexOf("=");
+      if (eq === -1) continue;
+      const key = trimmed.slice(0, eq).trim();
+      let val = trimmed.slice(eq + 1).trim();
+      // remove surrounding quotes
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      if (!(key in process.env)) {
+        process.env[key] = val;
+      }
+    }
+  }
+} catch (e) {
+  // non-fatal
+  // eslint-disable-next-line no-console
+  console.warn(".env load failed:", e);
+}
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
@@ -71,11 +102,23 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
+  // reusePort isn't supported on all platforms (Windows can throw ENOTSUP).
+  // Only set reusePort when not on Windows.
+  const listenOpts: any = { port, host: "0.0.0.0" };
+  if (process.platform !== "win32") {
+    listenOpts.reusePort = true;
+  }
+
+  server.listen(listenOpts, () => {
     log(`serving on port ${port}`);
+    try {
+      // log the actual address the server is bound to for debugging
+      // (may be a string or AddressInfo)
+      // @ts-ignore
+      const addr = server.address();
+      log(`server.address() => ${JSON.stringify(addr)}`);
+    } catch (e) {
+      log(`server.address() error: ${String(e)}`);
+    }
   });
 })();

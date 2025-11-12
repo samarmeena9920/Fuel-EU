@@ -25,19 +25,20 @@ export interface IStorage {
   createRoute(route: InsertRoute): Promise<Route>;
   setBaseline(id: number): Promise<Route>;
   getBaselineRoute(): Promise<Route | undefined>;
-  
+
   getShipCompliance(shipId: string, year: number): Promise<ShipCompliance | undefined>;
   createShipCompliance(compliance: InsertShipCompliance): Promise<ShipCompliance>;
   updateShipCompliance(id: number, cbGco2eq: number): Promise<ShipCompliance>;
   getAllShipComplianceByYear(year: number): Promise<ShipCompliance[]>;
-  
+
   getBankEntries(shipId: string, year: number): Promise<BankEntry[]>;
   getTotalBankedAmount(shipId: string, year: number): Promise<number>;
   createBankEntry(entry: InsertBankEntry): Promise<BankEntry>;
-  
+
   createPool(pool: InsertPool): Promise<Pool>;
   createPoolMember(member: InsertPoolMember): Promise<PoolMember>;
   getPoolMembers(poolId: number): Promise<PoolMember[]>;
+  getPoolsByYear(year: number): Promise<Array<Pool & { members: PoolMember[] }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -56,19 +57,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createRoute(route: InsertRoute): Promise<Route> {
-    const [newRoute] = await db.insert(routes).values(route).returning();
+    const [newRoute] = await db.insert(routes).values(route as unknown as any).returning();
     return newRoute;
   }
 
   async setBaseline(id: number): Promise<Route> {
     await db.update(routes).set({ isBaseline: false }).where(eq(routes.isBaseline, true));
-    
+
     const [updatedRoute] = await db
       .update(routes)
       .set({ isBaseline: true })
       .where(eq(routes.id, id))
       .returning();
-    
+
     return updatedRoute;
   }
 
@@ -88,7 +89,7 @@ export class DatabaseStorage implements IStorage {
   async createShipCompliance(compliance: InsertShipCompliance): Promise<ShipCompliance> {
     const [newCompliance] = await db
       .insert(shipCompliance)
-      .values(compliance)
+      .values(compliance as unknown as any) // or as unknown as InsertShipCompliance
       .returning();
     return newCompliance;
   }
@@ -122,22 +123,22 @@ export class DatabaseStorage implements IStorage {
       .select({ total: sql<number>`COALESCE(SUM(${bankEntries.amountGco2eq}), 0)` })
       .from(bankEntries)
       .where(and(eq(bankEntries.shipId, shipId), eq(bankEntries.year, year)));
-    
+
     return result[0]?.total || 0;
   }
 
   async createBankEntry(entry: InsertBankEntry): Promise<BankEntry> {
-    const [newEntry] = await db.insert(bankEntries).values(entry).returning();
+    const [newEntry] = await db.insert(bankEntries).values(entry as unknown as any).returning();
     return newEntry;
   }
 
   async createPool(pool: InsertPool): Promise<Pool> {
-    const [newPool] = await db.insert(pools).values(pool).returning();
+    const [newPool] = await db.insert(pools).values(pool as unknown as any).returning();
     return newPool;
   }
 
   async createPoolMember(member: InsertPoolMember): Promise<PoolMember> {
-    const [newMember] = await db.insert(poolMembers).values(member).returning();
+    const [newMember] = await db.insert(poolMembers).values(member as unknown as any).returning();
     return newMember;
   }
 
@@ -146,6 +147,18 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(poolMembers)
       .where(eq(poolMembers.poolId, poolId));
+  }
+
+  async getPoolsByYear(year: number): Promise<Array<Pool & { members: PoolMember[] }>> {
+    const poolRows = await db.select().from(pools).where(eq(pools.year, year));
+    const results: Array<Pool & { members: PoolMember[] }> = [];
+
+    for (const p of poolRows) {
+      const members = await this.getPoolMembers(p.id);
+      results.push({ ...(p as any), members });
+    }
+
+    return results;
   }
 }
 

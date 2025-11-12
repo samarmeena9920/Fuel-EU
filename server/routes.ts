@@ -352,6 +352,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/pools", async (req, res) => {
+    try {
+      const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+      if (!year) return res.status(400).json({ error: "Year parameter is required" });
+
+      const pools = await storage.getPoolsByYear(year);
+      res.json(pools.map(p => ({ id: p.id, year: p.year, members: p.members })));
+    } catch (error) {
+      console.error("Error fetching pools:", error);
+      res.status(500).json({ error: "Failed to fetch pools" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

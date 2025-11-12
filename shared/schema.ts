@@ -75,27 +75,27 @@ export const poolsRelations = relations(pools, ({ many }) => ({
 export const insertRouteSchema = createInsertSchema(routes).omit({
   id: true,
   createdAt: true,
-});
+} as any);
 
 export const insertShipComplianceSchema = createInsertSchema(shipCompliance).omit({
   id: true,
   createdAt: true,
-});
+} as any);
 
 export const insertBankEntrySchema = createInsertSchema(bankEntries).omit({
   id: true,
   createdAt: true,
-});
+} as any);
 
 export const insertPoolSchema = createInsertSchema(pools).omit({
   id: true,
   createdAt: true,
-});
+} as any);
 
 export const insertPoolMemberSchema = createInsertSchema(poolMembers).omit({
   id: true,
   createdAt: true,
-});
+} as any);
 
 export type Route = typeof routes.$inferSelect;
 export type InsertRoute = z.infer<typeof insertRouteSchema>;
